@@ -19,9 +19,10 @@ public class Processor {
     }
 
     public void doActiveTasks() {
+
         runningTasks.forEach(task -> task.timeLeft--);
         for (Task task: runningTasks) {
-            if (task.timeLeft >=0) doneTasks.add(task);
+            if (task.timeLeft <=0) doneTasks.add(task);
         }
         runningTasks.removeAll(doneTasks);
     }
@@ -33,16 +34,11 @@ public class Processor {
         else return false;
     }
 
-    public Task getBiggestTask() {
+    public Task getLatestTask() {
         if (runningTasks.isEmpty()) return new Task(0,0); // Puste zadanie które nigdy się nie wykona, więc nie wpłynie na symulacje. (odpowiednik null-a)
-        Task biggestTask = runningTasks.get(0);
-        for (Task task : runningTasks) {
-            if (task.load > biggestTask.load) {
-                biggestTask = task;
-            }
-        }
-        return biggestTask;
+        return runningTasks.get(runningTasks.size() - 1);
     }
+
     public void reset() {
         // Przywracam wszystkie zadania do oczekujących i resetuje ich czas wykonania.
         waitingTasks.addAll(runningTasks);
