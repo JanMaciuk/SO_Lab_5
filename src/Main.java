@@ -3,12 +3,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Main {
 
-    // Begin - Parametry symulacji TODO - zmienić po testowaniu
+    // Begin - Parametry symulacji
     protected static int numberOfProcessors = 50;
     protected static int numberOfTasks = 1000; // na procesor
     protected static int loggingFrequency = 5; // Co ile jednostek czasu zapisuję obciążenie procesorów.
     protected static int maxLoad = 90; // Próg maksymalnego obciążenia w %
     protected static int maxRequests = numberOfProcessors/2; // Maksymalna liczba zapytań do innych procesorów w strategii 1.
+    protected static boolean showPerProcessorLoad = true; // Czy pokazywać średnie obciążenie każdego procesora
 
     // End - Parametry symulacji
     protected static ArrayList<Processor> allProcessors = new ArrayList<>();
@@ -76,7 +77,7 @@ public class Main {
 
         System.out.println("Liczba zapytań do innych procesorów: " + requestsCount);
         System.out.println("Liczba przeniesień pomiędzy procesorami: " + transfersCount);
-
+        if (!showPerProcessorLoad) return;
         System.out.println("Obciążenie każdego procesora:");
         for (int i = 0; i < allProcessors.size(); i++) {
             System.out.println("Procesor " + i+1 + ": " + allProcessors.get(i).getAverageLoad() + "%");
