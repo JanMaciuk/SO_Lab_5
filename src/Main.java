@@ -8,8 +8,10 @@ public class Main {
     protected static int numberOfTasks = 1000; // na procesor
     protected static int loggingFrequency = 5; // Co ile jednostek czasu zapisuję obciążenie procesorów.
     protected static int maxLoad = 90; // Próg maksymalnego obciążenia w %
+    protected static int minLoad = 50; // Próg minimalnego obciążenia w %
     protected static int maxRequests = numberOfProcessors/2; // Maksymalna liczba zapytań do innych procesorów w strategii 1.
-    protected static boolean showPerProcessorLoad = true; // Czy pokazywać średnie obciążenie każdego procesora
+    protected static boolean showPerProcessorLoad = false; // Czy pokazywać średnie obciążenie każdego procesora
+    protected static int taskGeneratedProbability = 35; // Szansa na wygenerowanie nowego zadania na procesorze w %
 
     // End - Parametry symulacji
     protected static ArrayList<Processor> allProcessors = new ArrayList<>();
@@ -20,6 +22,9 @@ public class Main {
         allProcessors = Generator.generateProcessors(numberOfProcessors, numberOfTasks);
         run(1);
         allProcessors.forEach(Processor::reset);
+        run(2);
+        allProcessors.forEach(Processor::reset);
+        run(3);
 
     }
 
@@ -32,7 +37,7 @@ public class Main {
 
             //Na każdym procesorze jest szansa na wygenerowanie nowego zadania
             for (Processor processor : allProcessors) {
-                if (ThreadLocalRandom.current().nextBoolean() && ThreadLocalRandom.current().nextBoolean() && ThreadLocalRandom.current().nextBoolean()) {
+                if (randomProbability(taskGeneratedProbability)) {
                     // Procesor aktywuje zadanie (jeżeli zostały jeszcze jakieś zadania oczekujące)
                     if (!processor.activateTask()) continue;
                     // Jeżeli nie udało się aktywować zadania bo lista jest pusta to nie wykonujemy strategii.
@@ -80,7 +85,7 @@ public class Main {
         if (!showPerProcessorLoad) return;
         System.out.println("Obciążenie każdego procesora:");
         for (int i = 0; i < allProcessors.size(); i++) {
-            System.out.println("Procesor " + i+1 + ": " + allProcessors.get(i).getAverageLoad() + "%");
+            System.out.println("Procesor " + (i+1) + ": " + allProcessors.get(i).getAverageLoad() + "%");
         }
 
 
@@ -94,14 +99,17 @@ public class Main {
         return true;
     }
 
-    private static void transferTask(Processor from, Processor to, Task task) {
-        from.runningTasks.remove(task);
-        to.runningTasks.add(task);
+    private static boolean randomProbability(int probability) {
+        return ThreadLocalRandom.current().nextInt(100) < probability;
+    }
+
+    private static void transferTask(Processor from, Processor to) {
+        to.runningTasks.add(from.getLatestTask());
+        from.runningTasks.remove(from.getLatestTask());
         transfersCount++;
     }
 
 
-    //TODO: implementacja strategii
     private static void strategy1(Processor currentProcessor) {
         // Zapytaj losowy procesor czy ma obciążenie poniżej progu maxLoad, jeśli tak to prześlij mu request.
         // Nie pytamy wiele razy tego samego procesu.
@@ -121,16 +129,76 @@ public class Main {
                 remainingRequestAttempts--;
                 // Jeżeli procesor ma obciążenie poniżej progu to przenoszę zadanie które zostało teraz utworzone.
                 if (randomProcessor.currentLoad() < maxLoad) {
-                    transferTask(currentProcessor, randomProcessor, currentProcessor.getLatestTask());
+                    transferTask(currentProcessor, randomProcessor);
                     break;
                 }
             }
             // Jeżeli skończyły się próby i nie przeniosłem procesu to nic nie robię, wykona się on tam gdzie został utworzony.
         }
     }
-    private static void strategy2(Processor currentProcessor) {}
+    private static void strategy2(Processor currentProcessor) {
+        // Jeżeli currentProcessor ma load powyżej maxload to odpytujemy losowe procesory czy mają poniżej maxload.
+        // Jeśli tak to przesyłamy na taki procesor, jeśli odpytamy wszystkie bez sukcesu to nic nie robimy.
+
+        if (currentProcessor.currentLoad() < maxLoad) return;
+        ArrayList<Processor> askedProcessors = new ArrayList<>();
+        askedProcessors.add(currentProcessor);
+
+        while(askedProcessors.size()< numberOfProcessors) {
+            // Losuje procesor którego zapytam
+            Processor randomProcessor = allProcessors.get(ThreadLocalRandom.current().nextInt(allProcessors.size()));
+            // Jeżeli już pytałem ten procesor to nic nie robię i losuje inny.
+            if (!askedProcessors.contains(randomProcessor)) {
+                // Zapamiętuje że wykonałem zapytanie do tego procesora
+                requestsCount++;
+                askedProcessors.add(randomProcessor);
+                // Jeżeli procesor ma obciążenie poniżej progu to przenoszę zadanie które zostało teraz utworzone.
+                if (randomProcessor.currentLoad() < maxLoad) {
+                    transferTask(currentProcessor, randomProcessor);
+                    break;
+                }
+            }
+        }
+
+    }
     private static void strategy3() {
-        //Losujemy procesy, jeżeli jakiś ma obciążenie poniżej minimalnego progu to odpytuje inne procesory.
+        //Losujemy procesy, jeżeli jakiś ma obciążenie poniżej minimalnego progu, to odpytuje inne procesory.
+        ArrayList<Processor> askedProcessors = new ArrayList<>();
+        boolean foundProcessor = false;
+        Processor askingProcessor = allProcessors.get(0); // tylko wartosc poczatkowa, jest nadpisywany losowaniem
+        // Wykonuje, dopóki nie zapytałem wszystkich procesów lub znalazłem odpowiedni.
+        while(askedProcessors.size()< numberOfProcessors) {
+            askingProcessor = allProcessors.get(ThreadLocalRandom.current().nextInt(allProcessors.size()));
+            if (!askedProcessors.contains(askingProcessor)) {
+                askedProcessors.add(askingProcessor);
+                requestsCount++;
+                if (askingProcessor.currentLoad() < minLoad) {
+                    foundProcessor = true;
+                    break;
+                }
+            }
+        }
+        if (!foundProcessor) return; // Jeżeli nie ma procesora o obciążeniu mniejszym od minimum, to nic się nie dzieje.
+        askedProcessors.clear();
+        askedProcessors.add(askingProcessor);
+
+        while(askedProcessors.size()< numberOfProcessors) {
+            // Losuje procesor do zapytania
+            Processor randomProcessor = allProcessors.get(ThreadLocalRandom.current().nextInt(allProcessors.size()));
+            // Jeżeli już pytałem ten procesor, to nic nie robię i losuje inny.
+            if (!askedProcessors.contains(randomProcessor)) {
+                // Zapamiętuje, że wykonałem zapytanie do tego procesora
+                requestsCount++;
+                askedProcessors.add(randomProcessor);
+                // Jeżeli procesor ma obciążenie powyżej max, to przejmujemy jego zadania, dopóki nie osiągniemy minimum.
+                if (randomProcessor.currentLoad() > maxLoad) {
+                    while(askingProcessor.currentLoad() < minLoad) {
+                        transferTask(randomProcessor, askingProcessor);
+                    }
+                    break;
+                }
+            }
+        }
     }
 
 

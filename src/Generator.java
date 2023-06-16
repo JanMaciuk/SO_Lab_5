@@ -6,8 +6,8 @@ public class Generator {
     private static ArrayList<Task> generateTasks(int n) {
         ArrayList<Task> tasks = new ArrayList<>();
         for (int i = 0; i < n; i++) {
-            int load = ThreadLocalRandom.current().nextInt(1, 31);
-            int time = ThreadLocalRandom.current().nextInt(1, 101);
+            int load = ThreadLocalRandom.current().nextInt(1, 10);
+            int time = ThreadLocalRandom.current().nextInt(1, 100);
             tasks.add(new Task(load, time));
         }
         return tasks;
